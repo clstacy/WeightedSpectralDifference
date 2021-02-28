@@ -1,0 +1,17 @@
+Package: WeightedSpectralDifference
+Type: Package
+Title: Calculation of Weighted Spectral Difference of Circular Dichroism Curves Across Ranges of pH and Temperature
+Version: 0.1.0
+Author: Carson Stacy
+Maintainer: Carson Stacy <clstacy@uark.edu>
+Description: This package calculates the Weighted Spectral Difference between molar elipticity values from Circular Dichroism experiments across a gradient of pH. 
+    It is able to analyze across pH and for more than one protein.
+    The Weighted Spectral Difference is calculated according to the formula of Dinh et al., 2014 (https://doi.org/10.1016/j.ab.2014.07.011)
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
+Imports: 
+  tidyr,
+  dplyr,
+  ggplot2
+RoxygenNote: 7.1.1

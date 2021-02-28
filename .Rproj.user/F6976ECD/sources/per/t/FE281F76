@@ -1,0 +1,32 @@
+{
+    "id": "FE281F76",
+    "path": null,
+    "project_path": null,
+    "type": "r_dataframe",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1614490430267.0,
+    "source_on_save": false,
+    "relative_order": 8,
+    "properties": {
+        "expression": "df_tidy_WSD",
+        "caption": "df_tidy_WSD",
+        "totalObservations": 25242,
+        "displayedObservations": 25242,
+        "variables": 5,
+        "cacheKey": "5A7A7EA8",
+        "object": "df_tidy_WSD",
+        "environment": "",
+        "contentUrl": "grid_resource/gridviewer.html?env=&obj=df_tidy_WSD&cache_key=5A7A7EA8&max_cols=50",
+        "preview": 0
+    },
+    "folds": "",
+    "lastKnownWriteTime": 2459000718892870690,
+    "encoding": "",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1614490430267,
+    "read_only": false,
+    "read_only_alternatives": []
+}

@@ -1,0 +1,386 @@
+---
+title: "CD Data - WSD Calculation and Visualization"
+author: "Carson Stacy"
+date: "2/22/2021"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is my analysis of CD data.
+
+## load required packages
+```{r, echo=FALSE, results='hide', message=FALSE}
+library(ggplot2)
+library(tidyverse)
+```
+
+# HSP alpha Subunit
+
+## import data
+```{r}
+alphaCD_pH7 <- read.csv("~/PersonalProjects/cd_data/alphaCD_pH7.csv")
+alphaCD_pH4 <- read.csv("~/PersonalProjects/cd_data/alphaCD_pH4.csv")
+alphaCD_pH2 <- read.csv("~/PersonalProjects/cd_data/alphaCD_pH2.csv")
+```
+
+
+## refromat data
+```{r}
+#rename wavelength column name:
+alphaCD_pH4 <- rename(alphaCD_pH4, WL = ï..WL)
+alphaCD_pH2 <- rename(alphaCD_pH2, WL = ï..WL)
+
+#format data for easy plotting
+#put data in long from with tidy package
+aCD_pH7 <- gather(alphaCD_pH7, Temperature, MolarElipticity, -WL)
+aCD_pH4 <- gather(alphaCD_pH4, Temperature, MolarElipticity, -WL)
+aCD_pH2 <- gather(alphaCD_pH2, Temperature, MolarElipticity, -WL)
+
+## Old approach to do the same thing:
+# melt(alphaCD_pH7, variable.name = "Temperatue", value.name = "MolarElipticity", id.vars = "WL")
+
+# Convert Temperature value to numeric:
+aCD_pH7$Temperature <- as.numeric(gsub("\\D+", "", aCD_pH7$Temperature))
+aCD_pH4$Temperature <- as.numeric(gsub("\\D+", "", aCD_pH4$Temperature))
+aCD_pH2$Temperature <- as.numeric(gsub("\\D+", "", aCD_pH2$Temperature))
+
+# provide new column indicating pH for each dataset:
+aCD_pH7$pH <- 7
+aCD_pH4$pH <- 4
+aCD_pH2$pH <- 2
+
+aCD_all <- rbind(aCD_pH7, aCD_pH4, aCD_pH2)
+```
+
+## visualize raw data
+```{r}
+ggplot(data = aCD_pH7, aes(x=WL, y=MolarElipticity, color=as.factor(Temperature))) + #convert temp to factor so not continuous
+  geom_abline(intercept = 0) + #horizontal line 
+  # geom_point() +
+  geom_line() +
+  theme_bw() +
+  labs(color="Temperature (°C)", title = "Far-UV CD Spectra for HSP alpha subunit",
+       x = "Wavelength (nm)", y = "Molar Elipticity (deg * cm * cm/dmol")
+
+ggplot(data = aCD_pH4, aes(x=WL, y=MolarElipticity, color=as.factor(Temperature))) + #convert temp to factor so not continuous
+  geom_abline(intercept = 0) + #horizontal line 
+  # geom_point() +
+  geom_line() +
+  theme_bw() +
+  labs(color="Temperature (°C)", title = "Far-UV CD Spectra for HSP alpha subunit",
+       x = "Wavelength (nm)", y = "Molar Elipticity (deg * cm * cm/dmol")
+
+ggplot(data = aCD_pH2, aes(x=WL, y=MolarElipticity, color=as.factor(Temperature))) + #convert temp to factor so not continuous
+  geom_abline(intercept = 0) + #horizontal line 
+  # geom_point() +
+  geom_line() +
+  theme_bw() +
+  labs(color="Temperature (°C)", title = "Far-UV CD Spectra for HSP alpha subunit", 
+       x = "Wavelength (nm)", y = "Molar Elipticity (deg * cm * cm/dmol")
+
+# plot all of the data on a single graph:
+
+ggplot(data = aCD_all, aes(x=WL, y=MolarElipticity, group = interaction(pH, Temperature),color=as.factor(pH))) + #interaction to keep lines in right place
+  geom_abline(intercept = 0) + #horizontal line 
+  geom_vline(xintercept=200, color = "red") +
+  geom_vline(xintercept=250, color = "red") +
+  # geom_point() +
+  geom_line() +
+  theme_bw() +
+  labs(color="Temperature (°C)", title = "Far-UV CD Spectra for HSP alpha subunit (combined)", 
+       x = "Wavelength (nm)", y = "Molar Elipticity (deg * cm * cm/dmol")
+```
+
+## Write function for WSD calculation
+```{r}
+WSD <- function(control, samples) {
+  #find squared difference between y_Ai and y_Bi
+  WSD_output <- data.frame()
+  for (i in 1:length(samples)) {
+    for (j in 3:ncol(samples[[i]])) { #note we start at 3 because col 1 is wavelength and col2 is pH
+      SD <- sqrt( 
+                sum(
+                  (control - samples[[i]][[j]])^2  / length(control)
+                  ) 
+                )
+      WSD <- sqrt( 
+                sum( 
+                ((abs(control)) / sum(abs(control))) * (control - samples[[i]][[j]])^2
+                    ) 
+                )
+      if (!exists("WSD_output")) {
+        WSD_output <- data.frame(colnames(samples[[i]][j]), samples[[i]][[2]][1], WSD, SD)
+      } else {
+        WSD_output_new <- data.frame(colnames(samples[[i]][j]), samples[[i]][[2]][1], WSD, SD)
+        WSD_output <- rbind(WSD_output, WSD_output_new)
+      }
+    }
+  }
+ colnames(WSD_output) <- c("Temperature", "pH", "WSD", "SD")
+ return(WSD_output)
+}
+```
+
+## Format data in order to calculate WSD
+```{r}
+#define "control" data
+ctl_temp <- 75
+ctl_pH <- 7
+min_wavelength <- 200
+max_wavelength <- 250
+
+#select control data
+control <- aCD_all %>%
+  filter(Temperature == ctl_temp & pH == ctl_pH) %>%
+  filter(WL >= min_wavelength, WL <= max_wavelength) %>% #choose which range of wavelengths to include in WSD calculation
+  arrange(WL) %>%
+  pull(MolarElipticity)
+
+samples <- aCD_all %>%
+  # filter((Temperature == ctl_temp & pH == ctl_pH) == FALSE) %>%  #this line removes control fropm samples
+  filter(WL >= min_wavelength, WL <= max_wavelength) %>% #choose which range of wavelengths to include in WSD calculation
+  spread(Temperature, MolarElipticity) %>%
+  arrange(pH, WL) %>%
+  group_by(pH) %>%
+  group_split()
+
+```
+
+## Calculate WSD for all curves in output for plotting
+```{r}
+WSD_alpha <- WSD(control = control, samples = samples)
+head(WSD_alpha)
+
+
+#add column identifying subunit
+WSD_alpha$subunit <- "alpha"
+#save these data to a file
+write.csv(WSD_alpha, file = "Alpha_Weighted_Spectral_Difference_values_02_23_2021.csv", row.names = FALSE)
+```
+
+## plot WSD vs time for each pH
+```{r}
+ggplot(data = WSD_alpha, aes(x=Temperature, y=WSD, group= as.factor(pH), color=as.factor(pH))) + #convert temp to factor so not continuous
+  geom_abline(intercept = 0, size = 1) + #horizontal line 
+  geom_point(size = 2) +
+  geom_line(size = 1) +
+  theme_bw() +
+  labs(color="pH", title = "Weighted Spectral Difference values of HSP alpha subunit") +
+  xlab("Temperature (°C)")
+
+ggplot(data = WSD_alpha, aes(x=Temperature, y=SD, group= as.factor(pH), color=as.factor(pH))) + #convert temp to factor so not continuous
+  geom_abline(intercept = 0, size = 1) + #horizontal line 
+  geom_point(size = 2) +
+  geom_line(size = 1) +
+  theme_bw() +
+  labs(color="pH", title = "Spectral Difference values of HSP alpha subunit") +
+  xlab("Temperature (°C)")
+  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# HSP beta Subunit
+
+```{r import data }
+betaCD_pH7 <- read.csv("~/PersonalProjects/cd_data/betaCD_pH7.csv")
+betaCD_pH4 <- read.csv("~/PersonalProjects/cd_data/betaCD_pH4.csv")
+betaCD_pH2 <- read.csv("~/PersonalProjects/cd_data/betaCD_pH2.csv")
+```
+
+## load required packages
+```{r}
+library(ggplot2)
+library(tidyverse)
+```
+
+## refromat data
+```{r}
+#rename wavelength column name (formatting issue with excel):
+betaCD_pH7 <- rename(betaCD_pH7, WL = ï..WL)
+betaCD_pH4 <- rename(betaCD_pH4, WL = ï..WL)
+betaCD_pH2 <- rename(betaCD_pH2, WL = ï..WL)
+
+#format data for easy plotting
+#put data in long from with tidy package
+bCD_pH7 <- gather(betaCD_pH7, Temperature, MolarElipticity, -WL)
+bCD_pH4 <- gather(betaCD_pH4, Temperature, MolarElipticity, -WL)
+bCD_pH2 <- gather(betaCD_pH2, Temperature, MolarElipticity, -WL)
+
+## Old approach to do the same thing:
+# melt(betaCD_pH7, variable.name = "Temperatue", value.name = "MolarElipticity", id.vars = "WL")
+
+# Convert Temperature value to numeric:
+bCD_pH7$Temperature <- as.numeric(gsub("\\D+", "", bCD_pH7$Temperature))
+bCD_pH4$Temperature <- as.numeric(gsub("\\D+", "", bCD_pH4$Temperature))
+bCD_pH2$Temperature <- as.numeric(gsub("\\D+", "", bCD_pH2$Temperature))
+
+# provide new column indicating pH for each dataset:
+bCD_pH7$pH <- 7
+bCD_pH4$pH <- 4
+bCD_pH2$pH <- 2
+
+bCD_all <- rbind(bCD_pH7, bCD_pH4, bCD_pH2)
+```
+
+## visualize raw data
+```{r}
+ggplot(data = bCD_pH7, aes(x=WL, y=MolarElipticity, color=as.factor(Temperature))) + #convert temp to factor so not continuous
+  geom_abline(intercept = 0) + #horizontal line 
+  # geom_point() +
+  geom_line() +
+  theme_bw() +
+  labs(color="Temperature (°C)", title = "Far-UV CD Spectra for HSP beta subunit",
+       x = "Wavelength (nm)", y = "Molar Elipticity (deg * cm * cm/dmol")
+
+ggplot(data = bCD_pH4, aes(x=WL, y=MolarElipticity, color=as.factor(Temperature))) + #convert temp to factor so not continuous
+  geom_abline(intercept = 0) + #horizontal line 
+  # geom_point() +
+  geom_line() +
+  theme_bw() +
+  labs(color="Temperature (°C)", title = "Far-UV CD Spectra for HSP beta subunit", 
+       x = "Wavelength (nm)", y = "Molar Elipticity (deg * cm * cm/dmol")
+
+ggplot(data = bCD_pH2, aes(x=WL, y=MolarElipticity, color=as.factor(Temperature))) + #convert temp to factor so not continuous
+  geom_abline(intercept = 0) + #horizontal line 
+  # geom_point() +
+  geom_line() +
+  theme_bw() +
+  labs(color="Temperature (°C)", title = "Far-UV CD Spectra for HSP beta subunit", 
+       x = "Wavelength (nm)", y = "Molar Elipticity (deg * cm * cm/dmol")
+
+# plot all of the data on a single graph:
+
+ggplot(data = bCD_all, aes(x=WL, y=MolarElipticity, group = interaction(pH, Temperature),color=as.factor(pH))) + #interaction to keep lines in right place
+  geom_abline(intercept = 0) + #horizontal line 
+  geom_vline(xintercept=200, color = "red") +
+  geom_vline(xintercept=250, color = "red") +
+  # geom_point() +
+  geom_line() +
+  theme_bw() +
+  labs(color="Temperature (°C)", title = "Far-UV CD Spectra for HSP beta subunit (combined)", 
+       x = "Wavelength (nm)", y = "Molar Elipticity (deg * cm * cm/dmol")
+```
+
+## Write function for WSD calculation
+```{r}
+WSD <- function(control, samples) {
+  #find squared difference between y_Ai and y_Bi
+  WSD_output <- data.frame()
+  for (i in 1:length(samples)) {
+    for (j in 3:ncol(samples[[i]])) { #note we start at 3 because col 1 is wavelength and col2 is pH
+      SD <- sqrt( 
+                sum(
+                  (control - samples[[i]][[j]])^2  / length(control)
+                  ) 
+                )
+      WSD <- sqrt( 
+                sum( 
+                ((abs(control)) / sum(abs(control))) * (control - samples[[i]][[j]])^2
+                    ) 
+                )
+      if (!exists("WSD_output")) {
+        WSD_output <- data.frame(colnames(samples[[i]][j]), samples[[i]][[2]][1], WSD, SD)
+      } else {
+        WSD_output_new <- data.frame(colnames(samples[[i]][j]), samples[[i]][[2]][1], WSD, SD)
+        WSD_output <- rbind(WSD_output, WSD_output_new)
+      }
+    }
+  }
+ colnames(WSD_output) <- c("Temperature", "pH", "WSD", "SD")
+ return(WSD_output)
+}
+```
+
+## Format data in order to calculate WSD
+```{r}
+#define "control" data
+ctl_temp <- 75
+ctl_pH <- 7
+min_wavelength <- 200
+max_wavelength <- 250
+
+#select control data
+control <- bCD_all %>%
+  filter(Temperature == ctl_temp & pH == ctl_pH) %>%
+  filter(WL >= min_wavelength, WL <= max_wavelength) %>% #choose which range of wavelengths to include in WSD calculation
+  arrange(WL) %>%
+  pull(MolarElipticity)
+
+samples <- bCD_all %>%
+  # filter((Temperature == ctl_temp & pH == ctl_pH) == FALSE) %>%  #this line removes control fropm samples
+  filter(WL >= min_wavelength, WL <= max_wavelength) %>% #choose which range of wavelengths to include in WSD calculation
+  spread(Temperature, MolarElipticity) %>%
+  arrange(pH, WL) %>%
+  group_by(pH) %>%
+  group_split()
+
+```
+
+## Calculate WSD for all curves in output for plotting
+```{r}
+WSD_beta <- WSD(control = control, samples = samples)
+head(WSD_beta)
+
+#add column identifying subunit
+WSD_beta$subunit <- "beta"
+#save these data to a file
+write.csv(WSD_beta, file = "Beta_Weighted_Spectral_Difference_values_02_23_2021.csv", row.names = FALSE)
+```
+
+## plot WSD vs time for each pH
+```{r}
+ggplot(data = WSD_beta, aes(x=Temperature, y=WSD, group= as.factor(pH), color=as.factor(pH))) + #convert temp to factor so not continuous
+  geom_abline(intercept = 0, size = 1) + #horizontal line 
+  geom_point() +
+  geom_line(size = 1) +
+  theme_bw() +
+  labs(color="pH", title = "Spectral Difference values of HSP beta subunit") +
+  xlab("Temperature (°C)")
+
+ggplot(data = WSD_beta, aes(x=Temperature, y=SD, group= as.factor(pH), color=as.factor(pH))) + #convert temp to factor so not continuous
+  geom_abline(intercept = 0, size = 1) + #horizontal line 
+  geom_point(size = 2) +
+  geom_line(size = 1) +
+  theme_bw() +
+  labs(color="pH", title = "Weighted Spectral Difference values of HSP beta subunit") +
+  xlab("Temperature (°C)")
+```
+
+
+
+
+
+# Combined WSD plot for alpha and beta subunits
+```{r}
+#combine data for subunits
+WSD_alphabeta <- rbind(WSD_alpha, WSD_beta)
+
+ggplot(data = WSD_alphabeta, aes(x=Temperature, y=WSD, group= interaction(pH, subunit), color=as.factor(pH), shape=subunit)) + #convert temp to factor so not continuous
+  geom_abline(intercept = 0, size = 1) + #horizontal line 
+  geom_point(size = 2.5) +
+  geom_line(size = 1) +
+  theme_bw() +
+  labs(color="pH", title = "Spectral Difference values of HSP beta subunit") +
+  xlab("Temperature (°C)")
+```
